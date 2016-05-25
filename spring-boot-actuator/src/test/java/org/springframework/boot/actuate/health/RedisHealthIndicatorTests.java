@@ -16,10 +16,15 @@
 
 package org.springframework.boot.actuate.health;
 
+
+import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
 
 import org.junit.After;
 import org.junit.Test;
+import org.mockito.Mockito;
+
 
 import org.springframework.boot.actuate.autoconfigure.EndpointAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.HealthIndicatorAutoConfiguration;
@@ -27,8 +32,12 @@ import org.springframework.boot.autoconfigure.PropertyPlaceholderAutoConfigurati
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.connection.RedisClusterConnection;
+import org.springframework.data.redis.connection.RedisClusterNode;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisNode;
+
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -39,6 +48,7 @@ import static org.mockito.Mockito.verify;
  * Tests for {@link RedisHealthIndicator}.
  *
  * @author Christian Dupuis
+ * @author Richard Santana
  */
 public class RedisHealthIndicatorTests {
 
@@ -96,6 +106,36 @@ public class RedisHealthIndicatorTests {
 		assertThat(((String) health.getDetails().get("error"))
 				.contains("Connection failed"));
 		verify(redisConnectionFactory).getConnection();
+		verify(redisConnection).info();
+	}
+
+	@Test
+	public void redisClusterIsUp() throws Exception {
+		Properties info = new Properties();
+		List<RedisClusterNode> redisNodes = Arrays.asList(
+				new RedisClusterNode("127.0.0.1", 7001),
+				new RedisClusterNode("127.0.0.2", 7001),
+				new RedisClusterNode("127.0.0.3", 7001));
+		for (RedisNode redisNode : redisNodes) {
+			info.put(redisNode.asString() + ".redis_version", "2.8.9");
+		}
+		RedisClusterConnection redisConnection = mock(RedisClusterConnection.class);
+		given(redisConnection.clusterGetNodes()).willReturn(redisNodes);
+		RedisConnectionFactory redisConnectionFactory = mock(
+				RedisConnectionFactory.class);
+		given(redisConnectionFactory.getConnection()).willReturn(redisConnection);
+		given(redisConnection.info()).willReturn(info);
+		RedisHealthIndicator healthIndicator = new RedisHealthIndicator(
+				redisConnectionFactory);
+		Health health = healthIndicator.health();
+		assertThat(health.getStatus()).isEqualTo(Status.UP);
+		RedisConnection connection = redisConnectionFactory.getConnection();
+		for (RedisNode redisNode : ((RedisClusterConnection) connection)
+				.clusterGetNodes()) {
+			assertThat(health.getDetails().get(redisNode.asString() + ".version"))
+					.isEqualTo("2.8.9");
+		}
+		verify(redisConnectionFactory, Mockito.atLeastOnce()).getConnection();
 		verify(redisConnection).info();
 	}
 

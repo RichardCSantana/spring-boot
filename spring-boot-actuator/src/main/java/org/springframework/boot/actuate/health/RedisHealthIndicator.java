@@ -16,8 +16,11 @@
 
 package org.springframework.boot.actuate.health;
 
+import java.util.List;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
+import org.springframework.data.redis.connection.RedisClusterConnection;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisConnectionUtils;
@@ -28,10 +31,13 @@ import org.springframework.util.Assert;
  * Redis data stores.
  *
  * @author Christian Dupuis
+ * @author Richard Santana
  * @since 1.1.0
  */
 public class RedisHealthIndicator extends AbstractHealthIndicator {
 
+	private static final String VERSION = "version";
+	private static final String REDIS_VERSION = "redis_version";
 	private final RedisConnectionFactory redisConnectionFactory;
 
 	public RedisHealthIndicator(RedisConnectionFactory connectionFactory) {
@@ -45,11 +51,31 @@ public class RedisHealthIndicator extends AbstractHealthIndicator {
 				.getConnection(this.redisConnectionFactory);
 		try {
 			Properties info = connection.info();
-			builder.up().withDetail("version", info.getProperty("redis_version"));
+			if (connection instanceof RedisClusterConnection) {
+				redisClusterInfo(builder, info);
+			}
+			else {
+				defaultRedisInfo(builder, VERSION, info.getProperty(REDIS_VERSION));
+			}
 		}
 		finally {
 			RedisConnectionUtils.releaseConnection(connection,
 					this.redisConnectionFactory);
+		}
+	}
+
+	private void defaultRedisInfo(Health.Builder builder, String key, String value) {
+		builder.up().withDetail(key, value);
+	}
+
+	private void redisClusterInfo(Health.Builder builder, Properties info) {
+		List<String> versionInfoList = info.keySet().stream()
+				.map(actualInfo -> (String) actualInfo)
+				.filter(actualInfo -> actualInfo.contains(".version"))
+				.collect(Collectors.toList());
+		for (String versionInfo : versionInfoList) {
+			defaultRedisInfo(builder, versionInfo, info.getProperty(versionInfo));
+
 		}
 	}
 
