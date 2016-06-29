@@ -132,7 +132,7 @@ public class RedisHealthIndicatorTests {
 		RedisConnection connection = redisConnectionFactory.getConnection();
 		for (RedisNode redisNode : ((RedisClusterConnection) connection)
 				.clusterGetNodes()) {
-			assertThat(health.getDetails().get(redisNode.asString() + ".version"))
+			assertThat(health.getDetails().get(redisNode.asString() + ".redis_version"))
 					.isEqualTo("2.8.9");
 		}
 		verify(redisConnectionFactory, Mockito.atLeastOnce()).getConnection();

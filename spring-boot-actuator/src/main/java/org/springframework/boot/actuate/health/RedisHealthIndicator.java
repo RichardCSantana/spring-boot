@@ -16,9 +16,7 @@
 
 package org.springframework.boot.actuate.health;
 
-import java.util.List;
 import java.util.Properties;
-import java.util.stream.Collectors;
 
 import org.springframework.data.redis.connection.RedisClusterConnection;
 import org.springframework.data.redis.connection.RedisConnection;
@@ -69,13 +67,11 @@ public class RedisHealthIndicator extends AbstractHealthIndicator {
 	}
 
 	private void redisClusterInfo(Health.Builder builder, Properties info) {
-		List<String> versionInfoList = info.keySet().stream()
-				.map(actualInfo -> (String) actualInfo)
-				.filter(actualInfo -> actualInfo.contains(".version"))
-				.collect(Collectors.toList());
-		for (String versionInfo : versionInfoList) {
-			defaultRedisInfo(builder, versionInfo, info.getProperty(versionInfo));
-
+		for (Object key : info.keySet()) {
+			String currentInfo = (String) key;
+			if (currentInfo.contains("redis_version")) {
+				defaultRedisInfo(builder, currentInfo, info.getProperty(currentInfo));
+			}
 		}
 	}
 
